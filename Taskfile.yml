@@ -1,0 +1,31 @@
+version: '3'
+
+vars:
+  BINARY: web2mail
+
+tasks:
+  build:
+    desc: Build the application
+    cmds:
+      - go build -v -o {{.BINARY}} .
+
+  test:
+    desc: Run tests
+    cmds:
+      - ./test.sh
+
+  release-check:
+    desc: Check GoReleaser configuration
+    cmds:
+      - goreleaser check
+
+  release-snapshot:
+    desc: Create a snapshot release
+    cmds:
+      - goreleaser release --snapshot --clean
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -f {{.BINARY}}
+      - rm -rf dist/
