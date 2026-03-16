@@ -1,12 +1,9 @@
-# GoReleaser configuration for web2mail
 version: 2
-
-before:
-  hooks:
-    - go mod tidy
+project_name: web2mail
 
 builds:
-  - env:
+  - id: web2mail
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -24,26 +21,25 @@ archives:
   - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 nfpms:
   - id: web2mail
     package_name: web2mail
-    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
-    maintainer: Faisal <faisal@example.com>
-    description: A professional bridge to relay webhooks to SMTP/Sendmail
-    license: MIT
     formats:
       - deb
-    contents:
-      - src: ./web2mail
-        dst: /usr/bin/web2mail
+      - rpm
+      - apk
+      - archlinux
+    maintainer: Faisal <faisal@example.com>
+    description: A webhook to SMTP/Sendmail bridge specifically for forwardemail.net to deliver emails via an HTTP reverse proxy like nginx or cloudflared
+    license: MIT
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ .Version }}-snapshot"
+  version_template: "{{ .Version }}-snapshot"
 
 changelog:
   sort: asc

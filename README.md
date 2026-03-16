@@ -1,6 +1,6 @@
 # web2mail
 
-A professional and slick Go application that acts as a bridge, relaying webhooks seamlessly to your email inbox via SMTP or Sendmail.
+A webhook to SMTP/Sendmail bridge specifically for forwardemail.net to deliver emails via an HTTP reverse proxy like nginx or cloudflared.
 
 ## Overview
 
