@@ -35,6 +35,26 @@ nfpms:
     description: A webhook to SMTP/Sendmail bridge specifically for forwardemail.net to deliver emails via an HTTP reverse proxy like nginx or cloudflared
     license: MIT
 
+dockers_v2:
+  - id: web2mail
+    dockerfile: Dockerfile
+    ids:
+      - web2mail
+    images:
+      - ghcr.io/faisyl/web2mail
+    tags:
+      - "{{ .Version }}"
+      - latest
+    labels:
+      org.opencontainers.image.created: "{{.Date}}"
+      org.opencontainers.image.title: "{{.ProjectName}}"
+      org.opencontainers.image.revision: "{{.FullCommit}}"
+      org.opencontainers.image.version: "{{.Version}}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+      - linux/arm/v7
+
 checksum:
   name_template: "checksums.txt"
 
