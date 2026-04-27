@@ -264,7 +264,7 @@ func main() {
 	}
 
 	// Set up routes with path prefix support
-	http.HandleFunc(pathURL+"/", handleHome)
+	http.HandleFunc(pathURL+"/", handleHome(domainConfigs, pathURL))
 	http.HandleFunc(pathURL+"/health", handleHealth)
 	http.HandleFunc(pathURL+"/webhook/email", makeWebhookHandler(domainMap, legacyKey, backend))
 
@@ -540,12 +540,29 @@ func generateBoundary() string {
 	return fmt.Sprintf("----=_Part_%d_%d", time.Now().Unix(), time.Now().Nanosecond())
 }
 
-// handleHome serves the home page
-func handleHome(w http.ResponseWriter, r *http.Request) {
-	domain := os.Getenv("DOMAIN")
-	pathURL := os.Getenv("PATH_URL")
+// handleHome serves the landing page showing all configured domains.
+func handleHome(configs []DomainConfig, pathURL string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var domainsHTML strings.Builder
+		for _, dc := range configs {
+			domainsHTML.WriteString(fmt.Sprintf(`
+            <div class="info-card">
+                <span class="label">Domain</span>
+                <span class="value">%s</span>
+                <div class="endpoint-box" style="margin-top:12px;font-size:13px;">
+                    https://%s%s/webhook/email
+                </div>
+            </div>`, dc.Domain, dc.Domain, pathURL))
+		}
+		if len(configs) == 0 {
+			domainsHTML.WriteString(`
+            <div class="info-card">
+                <span class="label">Domain</span>
+                <span class="value">Not configured</span>
+            </div>`)
+		}
 
-	html := fmt.Sprintf(`<!DOCTYPE html>
+		html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -707,19 +724,11 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         </header>
 
         <div class="grid" style="text-align: left;">
-            <div class="info-card">
-                <span class="label">Primary Domain</span>
-                <span class="value">%s</span>
-            </div>
+            %s
             <div class="info-card">
                 <span class="label">Base Path Prefix</span>
                 <span class="value">%s</span>
             </div>
-        </div>
-
-        <div class="label">Configured Webhook Endpoint</div>
-        <div class="endpoint-box">
-            https://%s%s/webhook/email
         </div>
 
         <div class="label" style="margin-top: 32px;">Available Routes</div>
@@ -737,10 +746,11 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         </footer>
     </div>
 </body>
-</html>`, domain, pathURL, domain, pathURL, time.Now().Format("Jan 02, 2006 15:04:05 MST"))
+</html>`, domainsHTML.String(), pathURL, time.Now().Format("Jan 02, 2006 15:04:05 MST"))
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, html)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, html)
+	}
 }
 
 // handleLogo serves the embedded logo image
