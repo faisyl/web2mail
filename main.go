@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/smtp"
 	"net/textproto"
@@ -134,6 +135,59 @@ type EmailAttachment struct {
 type AttachmentContent struct {
 	Type string `json:"type"` // Should be "Buffer"
 	Data []int  `json:"data"` // Array of bytes as integers
+}
+
+// DomainConfig holds a domain hostname and its HMAC key.
+// Key may be empty, which disables signature verification for that domain.
+type DomainConfig struct {
+	Domain string
+	Key    string
+}
+
+// loadDomainConfigs reads DOMAIN/WEBHOOK_KEY (legacy) and DOMAIN_N/WEBHOOK_KEY_N
+// (numbered pairs, stops at first gap) from environment variables.
+// Returns the slice of domain configs and a standalone legacyKey — non-empty only
+// when WEBHOOK_KEY is set but DOMAIN is not (key-only deploy with no domain name).
+func loadDomainConfigs() ([]DomainConfig, string) {
+	var configs []DomainConfig
+
+	legacyDomain := os.Getenv("DOMAIN")
+	legacyKey := os.Getenv("WEBHOOK_KEY")
+
+	if legacyDomain != "" {
+		configs = append(configs, DomainConfig{Domain: legacyDomain, Key: legacyKey})
+		legacyKey = "" // domain is in the map; no separate fallback needed
+	}
+
+	for i := 1; ; i++ {
+		domain := os.Getenv(fmt.Sprintf("DOMAIN_%d", i))
+		if domain == "" {
+			break
+		}
+		configs = append(configs, DomainConfig{
+			Domain: domain,
+			Key:    os.Getenv(fmt.Sprintf("WEBHOOK_KEY_%d", i)),
+		})
+	}
+
+	return configs, legacyKey
+}
+
+// resolveKey maps an incoming Host header value to the HMAC key for that domain.
+// Returns (key, true) when the host is allowed; ("", false) when it must be rejected.
+// Rejection only occurs when at least one domain is configured but the host matches none.
+// When no domains are configured at all, returns (legacyKey, true) — legacyKey may be "".
+func resolveKey(host string, domainMap map[string]string, legacyKey string) (string, bool) {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	if key, ok := domainMap[host]; ok {
+		return key, true
+	}
+	if len(domainMap) > 0 {
+		return "", false
+	}
+	return legacyKey, true
 }
 
 func main() {

@@ -83,6 +83,80 @@ curl -s -X POST http://localhost:8080/webhook/email \
   -H "Content-Type: application/json" \
   -d @test_payload.json || echo "Expected failure"
 
+# === Multi-domain tests ===
+echo ""
+echo "=== Testing multi-domain routing ==="
+
+PORT=8082 \
+DOMAIN=legacy.test \
+WEBHOOK_KEY=legacy-secret \
+DOMAIN_1=alpha.test \
+WEBHOOK_KEY_1=alpha-secret \
+DOMAIN_2=beta.test \
+WEBHOOK_KEY_2=beta-secret \
+SENDMAIL_PATH="$(pwd)/mock-sendmail.sh" \
+./$BINARY &
+
+MULTI_PID=$!
+sleep 1
+
+# Test 1: alpha.test with correct key -> 200
+echo ""
+echo "--- alpha.test correct key (expect 200) ---"
+SIG=$(compute_signature "test_payload.json" "alpha-secret")
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8082/webhook/email \
+  -H "Host: alpha.test" \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: $SIG" \
+  --data-binary @test_payload.json)
+echo "Status: $STATUS"
+
+# Test 2: beta.test with correct key -> 200
+echo ""
+echo "--- beta.test correct key (expect 200) ---"
+SIG=$(compute_signature "test_payload.json" "beta-secret")
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8082/webhook/email \
+  -H "Host: beta.test" \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: $SIG" \
+  --data-binary @test_payload.json)
+echo "Status: $STATUS"
+
+# Test 3: alpha.test with wrong key -> 401
+echo ""
+echo "--- alpha.test wrong key (expect 401) ---"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8082/webhook/email \
+  -H "Host: alpha.test" \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: wrong-sig" \
+  --data-binary @test_payload.json)
+echo "Status: $STATUS"
+
+# Test 4: unknown host -> 403
+echo ""
+echo "--- unknown host (expect 403) ---"
+SIG=$(compute_signature "test_payload.json" "alpha-secret")
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8082/webhook/email \
+  -H "Host: unknown.test" \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: $SIG" \
+  --data-binary @test_payload.json)
+echo "Status: $STATUS"
+
+# Test 5: legacy domain still works -> 200
+echo ""
+echo "--- legacy.test correct key (expect 200) ---"
+SIG=$(compute_signature "test_payload.json" "legacy-secret")
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8082/webhook/email \
+  -H "Host: legacy.test" \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: $SIG" \
+  --data-binary @test_payload.json)
+echo "Status: $STATUS"
+
+kill $MULTI_PID
+wait $MULTI_PID 2>/dev/null || true
+
 # Cleanup
 echo ""
 echo "=== Cleaning up ==="
