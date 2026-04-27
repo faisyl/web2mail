@@ -3,10 +3,10 @@
 # Accepts standard sendmail parameters and displays the email content
 
 # Parse arguments (we accept -t -i but don't need to do anything with them)
-while getopts "ti" opt; do
+while getopts "tif:" opt; do
   case $opt in
-    t|i)
-      # These are standard sendmail options, just ignore them
+    t|i|f)
+      # Standard sendmail options, just ignore them
       ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2

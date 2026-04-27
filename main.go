@@ -197,9 +197,12 @@ func main() {
 		port = "8080"
 	}
 
-	domain := os.Getenv("DOMAIN")
 	pathURL := os.Getenv("PATH_URL")
-	webhookKey := os.Getenv("WEBHOOK_KEY")
+	domainConfigs, legacyKey := loadDomainConfigs()
+	domainMap := make(map[string]string, len(domainConfigs))
+	for _, dc := range domainConfigs {
+		domainMap[dc.Domain] = dc.Key
+	}
 
 	// Determine backend type
 	backendType := strings.ToLower(os.Getenv("BACKEND_TYPE"))
@@ -242,12 +245,12 @@ func main() {
 
 	// Log startup information
 	log.Printf("Starting ForwardEmail Webhook Handler on port %s", port)
-	log.Printf("Domain: %s, Path: %s", domain, pathURL)
-	log.Printf("Backend type: %s", backendType)
-	if webhookKey != "" {
-		log.Printf("Webhook key authentication enabled")
-	} else {
-		log.Printf("Webhook key authentication disabled (optional)")
+	log.Printf("Path: %s, Backend: %s", pathURL, backendType)
+	for _, dc := range domainConfigs {
+		log.Printf("Domain: %s (key configured: %v)", dc.Domain, dc.Key != "")
+	}
+	if legacyKey != "" {
+		log.Printf("Legacy key-only mode (WEBHOOK_KEY set, no DOMAIN)")
 	}
 
 	// Normalize pathURL: ensure it starts with / and has no trailing slash
@@ -263,7 +266,7 @@ func main() {
 	// Set up routes with path prefix support
 	http.HandleFunc(pathURL+"/", handleHome)
 	http.HandleFunc(pathURL+"/health", handleHealth)
-	http.HandleFunc(pathURL+"/webhook/email", makeWebhookHandler(webhookKey, backend))
+	http.HandleFunc(pathURL+"/webhook/email", makeWebhookHandler(domainMap, legacyKey, backend))
 
 	// Create server with timeouts
 	server := &http.Server{
@@ -282,7 +285,7 @@ func main() {
 }
 
 // makeWebhookHandler creates the webhook handler with configuration
-func makeWebhookHandler(webhookKey string, backend Backend) http.HandlerFunc {
+func makeWebhookHandler(domainMap map[string]string, legacyKey string, backend Backend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request at %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
 
@@ -308,7 +311,15 @@ func makeWebhookHandler(webhookKey string, backend Backend) http.HandlerFunc {
 			}
 		}
 
-		// Verify webhook signature if key is configured
+		// Resolve which HMAC key applies to this request's Host
+		webhookKey, allowed := resolveKey(r.Host, domainMap, legacyKey)
+		if !allowed {
+			log.Printf("Webhook rejected: unknown host %s", r.Host)
+			http.Error(w, "Forbidden: unknown host", http.StatusForbidden)
+			return
+		}
+
+		// Verify webhook signature if a key is configured for this domain
 		if webhookKey != "" {
 			providedSignature := r.Header.Get("X-Webhook-Signature")
 			if providedSignature == "" {
@@ -317,10 +328,8 @@ func makeWebhookHandler(webhookKey string, backend Backend) http.HandlerFunc {
 				return
 			}
 
-			// Compute HMAC signature of the request body
 			expectedSignatureBytes := computeHMAC(body, webhookKey)
 
-			// Compare signatures using constant-time comparison
 			if !verifySignature(providedSignature, expectedSignatureBytes) {
 				log.Printf("Webhook authentication failed: invalid signature")
 				http.Error(w, "Unauthorized: invalid signature", http.StatusUnauthorized)
