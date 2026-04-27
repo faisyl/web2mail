@@ -56,9 +56,11 @@ Attachments arrive as `{type: "Buffer", data: [int...]}` and are base64-encoded 
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `8080` | HTTP listen port |
-| `DOMAIN` | — | Displayed on landing page |
+| `DOMAIN` | — | Legacy single domain (hostname the server is reachable at) |
 | `PATH_URL` | `/` | Base path prefix for all routes |
-| `WEBHOOK_KEY` | — | HMAC secret; if unset, signature check is skipped |
+| `WEBHOOK_KEY` | — | HMAC secret for `DOMAIN`; if unset, signature check is skipped |
+| `DOMAIN_N` | — | Domain N hostname (N = 1, 2, 3…); scanning stops at first gap |
+| `WEBHOOK_KEY_N` | — | HMAC secret for `DOMAIN_N`; empty disables sig check for that domain |
 | `BACKEND_TYPE` | `sendmail` | `sendmail` or `smtp` |
 | `SENDMAIL_PATH` | `/usr/sbin/sendmail` | Path to sendmail binary |
 | `SMTP_HOST` | — | SMTP server hostname |
