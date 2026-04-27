@@ -27,3 +27,6 @@ vendor/
 .DS_Store
 Thumbs.db
 dist/
+
+# Git worktrees
+.worktrees/
